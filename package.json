@@ -2,9 +2,9 @@
   "name": "vscode-gutter-preview-frankie",
   "private": true,
   "description": "Shows image preview in the gutter and on hover",
-  "publisher": "Frankie",
+  "publisher": "frankie",
   "license": "MIT",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "displayName": "Image preview (Frankie)",
   "icon": "images/logo.png",
   "engines": {
@@ -12,12 +12,14 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/toFrankie/gutter-preview"
+    "url": "https://github.com/tofrankie/gutter-preview/tree/develop"
   },
+  "homepage": "https://github.com/tofrankie/gutter-preview/tree/develop",
   "keywords": [
     "vscode",
     "image",
-    "preview"
+    "preview",
+    "frankie"
   ],
   "categories": [
     "Other"

@@ -12,8 +12,10 @@ Shows image preview in the gutter and on hover
 
 [Direct link to Visual Studio Code Marketplace](https://marketplace.visualstudio.com/items?itemName=kisstkondoros.vscode-gutter-preview)
 
-### Change Log
+## Change Log
 
+-   0.32.3
+    -   Fix issues where images might not be displayed (contribution by @tofrankie)
 -   0.32.2
     -   Update changelog
     -   Support slash "/" in aliases
@@ -258,6 +260,6 @@ Shows image preview in the gutter and on hover
 -   0.0.1
     -   Initial project setup
 
-### License
+## License
 
 Licensed under MIT

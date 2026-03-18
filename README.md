@@ -40,7 +40,7 @@ Shows image preview in the gutter and on hover
 -   0.31.0
     -   Update changelog
     -   Add `avif` support (contribution by @rommelmamedov)
-    -   Add option to load images without extensions (contribution by @toFrankie)
+    -   Add option to load images without extensions (contribution by @tofrankie)
         -   See option "gutterpreview.urlDetectionPatterns" for details
 -   0.30.0
     -   Update changelog

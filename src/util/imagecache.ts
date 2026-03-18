@@ -4,6 +4,7 @@ import fetch from 'node-fetch';
 import * as path from 'path';
 import * as url from 'url';
 import * as fs from 'fs';
+import * as mime from 'mime-types';
 import { copyFile } from './fileutil';
 import { replaceCurrentColorInFileContent } from './currentColorHelper';
 
@@ -46,11 +47,9 @@ export const ImageCache = {
                 if (!fs.existsSync(storagePath)) {
                     fs.mkdirSync(storagePath);
                 }
-                const tempFile = tmp.fileSync({
-                    tmpdir: storagePath,
-                    postfix: absoluteImageUrl.path ? path.parse(absoluteImageUrl.path).ext : '.png',
-                });
-                const filePath = tempFile.name;
+
+                const urlExt = absoluteImageUrl.path ? path.parse(absoluteImageUrl.path).ext : '';
+
                 const promise = new Promise<string>((resolve, reject) => {
                     if (absoluteImageUrl.scheme && absoluteImageUrl.scheme.startsWith('http')) {
                         fetch(new url.URL(absoluteImagePath).toString(), {
@@ -61,24 +60,48 @@ export const ImageCache = {
                                     reject(resp.statusText);
                                     return;
                                 }
+
+                                let tempFile: tmp.FileResult;
+
+                                if (urlExt) {
+                                    tempFile = tmp.fileSync({
+                                        tmpdir: storagePath,
+                                        postfix: urlExt,
+                                    });
+                                } else {
+                                    const contentType = resp.headers.get('content-type') || '';
+                                    const inferredExt = contentType ? mime.extension(contentType) : false;
+
+                                    tempFile = tmp.fileSync({
+                                        tmpdir: storagePath,
+                                        postfix: inferredExt ? `.${inferredExt}` : '',
+                                    });
+                                }
+
+                                const filePath = tempFile.name;
+
                                 const dest = fs.createWriteStream(filePath);
                                 resp.body.pipe(dest);
-                                resp.body.on('error', (err) => {
-                                    reject(err);
-                                });
-                                dest.on('finish', function () {
-                                    resolve(filePath);
-                                });
+                                resp.body.on('error', (err) => reject(err));
+                                dest.on('finish', () => resolve(filePath));
                             })
                             .catch((err) => reject(err));
                     } else {
+                        const tempFile = tmp.fileSync({
+                            tmpdir: storagePath,
+                            postfix: urlExt || '.png',
+                        });
+
+                        const filePath = tempFile.name;
+
                         try {
                             const handle = fs.watch(absoluteImagePath, function fileChangeListener() {
                                 handle.close();
                                 fs.unlink(filePath, () => {});
                                 ImageCache.delete(absoluteImagePath);
                             });
-                        } catch (e) {}
+                        } catch {}
+
                         copyFile(absoluteImagePath, filePath, (err) => {
                             if (!err) {
                                 resolve(filePath);

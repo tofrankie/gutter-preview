@@ -12,9 +12,9 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/tofrankie/gutter-preview/tree/develop"
+    "url": "https://github.com/tofrankie/gutter-preview/tree/url-detection-patterns"
   },
-  "homepage": "https://github.com/tofrankie/gutter-preview/tree/develop",
+  "homepage": "https://github.com/tofrankie/gutter-preview/tree/url-detection-patterns",
   "keywords": [
     "vscode",
     "image",

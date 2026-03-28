@@ -1,4 +1,3 @@
-import * as url from 'url';
 import * as path from 'path';
 import * as fs from 'fs';
 
@@ -6,7 +5,7 @@ import { AbsoluteUrlMapper } from './mapper';
 import { ImageCache } from '../util/imagecache';
 
 class RelativeToWorkspaceRootFileUrlMapper implements AbsoluteUrlMapper {
-    private additionalSourceFolder: string = '';
+    private additionalSourceFolders: string[] = [];
     private workspaceFolder: string;
     private paths: { [alias: string]: string | string[] };
     private aliases: string[];
@@ -16,7 +15,7 @@ class RelativeToWorkspaceRootFileUrlMapper implements AbsoluteUrlMapper {
 
         if (this.workspaceFolder) {
             let rootPath = path.normalize(this.workspaceFolder);
-            const pathName = path.normalize(imagePath);
+            const pathName = path.normalize(imagePath).replace(/\\/g, '/');
             if (pathName) {
                 const pathsToTest = [pathName];
                 if (this.paths['']) {
@@ -29,34 +28,36 @@ class RelativeToWorkspaceRootFileUrlMapper implements AbsoluteUrlMapper {
                         pathsToTest.push(resolvedPath);
                     });
                 }
-                const segments = pathName.split('/');
-                const firstSegment = segments[0];
-                if (firstSegment && this.aliases.indexOf(firstSegment) > -1) {
-                    let aliases = this.paths[firstSegment];
-                    if (!Array.isArray(aliases)) {
-                        aliases = [aliases];
+                this.aliases.forEach((alias) => {
+                    if (alias != '' && pathName.startsWith(alias)) {
+                        let aliases = this.paths[alias];
+                        if (!Array.isArray(aliases)) {
+                            aliases = [aliases];
+                        }
+                        aliases.forEach((replacement) => {
+                            pathsToTest.push(pathName.replace(alias, replacement));
+                        });
                     }
-                    aliases.forEach((alias) => {
-                        segments[0] = alias;
-                        const resolvedPath = segments.join('/');
-                        pathsToTest.push(resolvedPath);
-                    });
-                }
+                });
 
                 for (let index = 0; index < pathsToTest.length; index++) {
                     const testPath = pathsToTest[index];
                     let testImagePath = path.join(rootPath, testPath);
                     if (ImageCache.has(testImagePath) || fs.existsSync(testImagePath)) {
                         absoluteImagePath = testImagePath;
-                    } else if (this.additionalSourceFolder) {
-                        let testImagePath;
-                        if (path.isAbsolute(this.additionalSourceFolder)) {
-                            testImagePath = path.join(this.additionalSourceFolder, testPath);
-                        } else {
-                            testImagePath = path.join(rootPath, this.additionalSourceFolder, testPath);
-                        }
-                        if (ImageCache.has(testImagePath) || fs.existsSync(testImagePath)) {
-                            absoluteImagePath = testImagePath;
+                    } else if (this.additionalSourceFolders.length > 0) {
+                        for (let i = 0; i < this.additionalSourceFolders.length; i++) {
+                            const additionalSourceFolder = this.additionalSourceFolders[i];
+                            let testImagePath;
+                            if (path.isAbsolute(additionalSourceFolder)) {
+                                testImagePath = path.join(additionalSourceFolder, testPath);
+                            } else {
+                                testImagePath = path.join(rootPath, additionalSourceFolder, testPath);
+                            }
+                            if (ImageCache.has(testImagePath) || fs.existsSync(testImagePath)) {
+                                absoluteImagePath = testImagePath;
+                                break;
+                            }
                         }
                     }
                 }
@@ -65,9 +66,9 @@ class RelativeToWorkspaceRootFileUrlMapper implements AbsoluteUrlMapper {
         return absoluteImagePath;
     }
 
-    refreshConfig(workspaceFolder: string, sourcefolder: string, paths: { [alias: string]: string | string[] }) {
+    refreshConfig(workspaceFolder: string, sourcefolders: string[], paths: { [alias: string]: string | string[] }) {
         this.workspaceFolder = workspaceFolder;
-        this.additionalSourceFolder = sourcefolder;
+        this.additionalSourceFolders = sourcefolders;
         this.paths = paths;
         this.aliases = Object.keys(paths);
     }

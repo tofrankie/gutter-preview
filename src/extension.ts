@@ -1,14 +1,14 @@
 import * as path from 'path';
-import * as vscode from 'vscode';
-import { loadConfig } from 'tsconfig-paths/lib/config-loader';
+import { loadConfig } from './util/ts-config-loader';
 
 import {
     ServerOptions,
     TransportKind,
-    ErrorAction,
     Message,
     LanguageClientOptions,
     LanguageClient,
+    CloseAction,
+    ErrorAction,
 } from 'vscode-languageclient/node';
 import {
     ExtensionContext,
@@ -21,6 +21,7 @@ import {
     Uri,
     Location,
     LocationLink,
+    OutputChannel,
 } from 'vscode';
 import { ImageInfoResponse, GutterPreviewImageRequestType } from './common/protocol';
 import { imageDecorator } from './decorator';
@@ -30,7 +31,7 @@ const pathCache = {};
 
 const loadPathsFromTSConfig = (
     workspaceFolder: string,
-    currentFileFolder: string
+    currentFileFolder: string,
 ): { [name: string]: string | string[] } => {
     if (pathCache[currentFileFolder]) {
         return pathCache[currentFileFolder];
@@ -60,7 +61,7 @@ const loadPathsFromTSConfig = (
                     if (element.endsWith('*')) {
                         element = element.substring(0, element.length - 1);
                     }
-                    resolvedMapping.push(path.join(baseUrl, element));
+                    resolvedMapping.push(path.join(baseUrl, element).replace(/\\/g, '/'));
                 });
                 paths[aliasWithoutWildcard] = resolvedMapping;
             }
@@ -79,27 +80,37 @@ export function activate(context: ExtensionContext) {
 
     let serverModule = context.asAbsolutePath(path.join('dist', 'server.js'));
 
-    let debugOptions = { execArgv: ['--nolazy', '--inspect=6009'] };
+    let debugOptions = { execArgv: ['--nolazy', '--inspect=6099'] };
 
     let serverOptions: ServerOptions = {
         run: { module: serverModule, transport: TransportKind.ipc },
         debug: { module: serverModule, transport: TransportKind.ipc, options: debugOptions },
     };
-    var output = window.createOutputChannel('gutter-preview');
-    let error: (error, message, count) => ErrorAction = (error: Error, message: Message, count: number) => {
-        output.appendLine(message.jsonrpc);
-        return undefined;
-    };
+    var output: OutputChannel | undefined = undefined;
+
     let clientOptions: LanguageClientOptions = {
         documentSelector: ['*'],
         initializationOptions: {
             storagePath: storageUri.fsPath,
         },
         errorHandler: {
-            error: error,
+            error: (error: Error, message: Message | undefined, count: number | undefined) => {
+                if (!output) {
+                    output = window.createOutputChannel('gutter-preview');
+                }
+                output.appendLine(message.jsonrpc);
+                return {
+                    handled: true,
+                    action: ErrorAction.Continue,
+                    message:
+                        'An error occured while processing a request for the gutter-preview extension. Check the output "gutter-preview" for further details.',
+                };
+            },
 
             closed: () => {
-                return undefined;
+                return {
+                    action: CloseAction.Restart,
+                };
             },
         },
         synchronize: {
@@ -108,14 +119,15 @@ export function activate(context: ExtensionContext) {
     };
 
     let client = new LanguageClient('gutterpreview parser', serverOptions, clientOptions);
-    let disposable = client.start();
-
-    context.subscriptions.push(disposable);
+    const started = client.start();
+    started.then((_) => {
+        context.subscriptions.push({ dispose: () => client.dispose() });
+    });
 
     let symbolUpdater = (
         document: TextDocument,
         visibleLines: number[],
-        token: CancellationToken
+        token: CancellationToken,
     ): Promise<ImageInfoResponse> => {
         let paths = getConfiguredProperty(document, 'paths', {});
 
@@ -131,7 +143,7 @@ export function activate(context: ExtensionContext) {
         }
 
         const getImageInfo = (uri: Uri, visibleLines: number[]): Promise<ImageInfoResponse> => {
-            return client.onReady().then(() => {
+            return started.then(() => {
                 return client.sendRequest(
                     GutterPreviewImageRequestType,
                     {
@@ -140,10 +152,13 @@ export function activate(context: ExtensionContext) {
                         fileName: document.fileName,
                         workspaceFolder: workspaceFolder,
                         currentColor: getConfiguredProperty(document, 'currentColorForSVG', ''),
-                        additionalSourcefolder: getConfiguredProperty(document, 'sourceFolder', ''),
+                        additionalSourcefolders: [
+                            ...getConfiguredProperty<string[]>(document, 'sourceFolder', []),
+                            ...getConfiguredProperty<string[]>(document, 'sourceFolders', []),
+                        ],
                         paths: paths,
                     },
-                    token
+                    token,
                 );
             });
         };
@@ -164,7 +179,7 @@ export function activate(context: ExtensionContext) {
                 while ((matches = propertyAccessRegex.exec(line)) != null) {
                     const position = new Position(
                         lineIndex,
-                        matches.index + 1 /* DOT or $ sign */ + 1 /* to be inside the word */
+                        matches.index + 1 /* DOT or $ sign */ + 1 /* to be inside the word */,
                     );
                     const range = document.getWordRangeAtPosition(position);
                     if (!range) continue;
@@ -213,7 +228,7 @@ export function activate(context: ExtensionContext) {
             })
             .catch((e) => {
                 console.warn(
-                    'Connection was not yet ready when requesting image previews or an unexpected error occured.'
+                    'Connection was not yet ready when requesting image previews or an unexpected error occured.',
                 );
                 console.warn(e);
                 return {
@@ -221,12 +236,6 @@ export function activate(context: ExtensionContext) {
                 };
             });
     };
-
-    vscode.workspace.onDidChangeConfiguration((event) => {
-        if (event.affectsConfiguration('gutterpreview.urlDetectionPatterns')) {
-            imageDecorator(symbolUpdater, context, client);
-        }
-    });
 
     imageDecorator(symbolUpdater, context, client);
 }

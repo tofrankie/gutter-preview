@@ -4,8 +4,9 @@ import fetch from 'node-fetch';
 import * as path from 'path';
 import * as url from 'url';
 import * as fs from 'fs';
+import * as mime from 'mime-types';
 import { copyFile } from './fileutil';
-import { promisify } from 'util';
+import { replaceCurrentColorInFileContent } from './currentColorHelper';
 
 tmp.setGracefulCleanup();
 
@@ -46,70 +47,76 @@ export const ImageCache = {
                 if (!fs.existsSync(storagePath)) {
                     fs.mkdirSync(storagePath);
                 }
-                const tempFile = tmp.fileSync({
-                    tmpdir: storagePath,
-                    postfix: absoluteImageUrl.path ? path.parse(absoluteImageUrl.path).ext : '.png',
-                });
-                const filePath = tempFile.name;
+
+                const urlExt = absoluteImageUrl.path ? path.parse(absoluteImageUrl.path).ext : '';
+
                 const promise = new Promise<string>((resolve, reject) => {
                     if (absoluteImageUrl.scheme && absoluteImageUrl.scheme.startsWith('http')) {
-                        fetch(new url.URL(absoluteImagePath).toString())
+                        fetch(new url.URL(absoluteImagePath).toString(), {
+                            size: 20 * 1024 * 1024, // 20 MB
+                        })
                             .then((resp) => {
                                 if (!resp.ok) {
                                     reject(resp.statusText);
                                     return;
                                 }
+
+                                let tempFile: tmp.FileResult;
+
+                                if (urlExt) {
+                                    tempFile = tmp.fileSync({
+                                        tmpdir: storagePath,
+                                        postfix: urlExt,
+                                    });
+                                } else {
+                                    const contentType = resp.headers.get('content-type') || '';
+                                    const inferredExt = contentType ? mime.extension(contentType) : false;
+
+                                    tempFile = tmp.fileSync({
+                                        tmpdir: storagePath,
+                                        postfix: inferredExt ? `.${inferredExt}` : '',
+                                    });
+                                }
+
+                                const filePath = tempFile.name;
+
                                 const dest = fs.createWriteStream(filePath);
                                 resp.body.pipe(dest);
-                                resp.body.on('error', (err) => {
-                                    reject(err);
-                                });
-                                dest.on('finish', function () {
-                                    resolve(filePath);
-                                });
+                                resp.body.on('error', (err) => reject(err));
+                                dest.on('finish', () => resolve(filePath));
                             })
                             .catch((err) => reject(err));
                     } else {
+                        const tempFile = tmp.fileSync({
+                            tmpdir: storagePath,
+                            postfix: urlExt || '.png',
+                        });
+
+                        const filePath = tempFile.name;
+
                         try {
                             const handle = fs.watch(absoluteImagePath, function fileChangeListener() {
                                 handle.close();
                                 fs.unlink(filePath, () => {});
                                 ImageCache.delete(absoluteImagePath);
                             });
-                        } catch (e) {}
+                        } catch {}
+
                         copyFile(absoluteImagePath, filePath, (err) => {
                             if (!err) {
                                 resolve(filePath);
+                            } else {
+                                reject(err);
                             }
                         });
                     }
                 });
-
-                const injectStyles = (path: string) => {
-                    return new Promise<string>((res, rej) => {
-                        if (path.endsWith('.svg') && currentColorForClojure && currentColorForClojure != '') {
-                            const read = promisify(fs.readFile);
-                            const write = promisify(fs.writeFile);
-
-                            read(path)
-                                .then((data) => {
-                                    const original = data.toString('utf-8');
-                                    return original.replace('<svg', `<svg style="color:${currentColorForClojure}"`);
-                                })
-                                .then((data) => {
-                                    return write(path, data);
-                                })
-                                .then(() => res(path))
-                                .catch((err) => rej(err));
-                        } else {
-                            res(path);
-                        }
-                    });
-                };
-                const injected = promise.then((p) => injectStyles(p));
+                const injected = promise.then((p) => replaceCurrentColorInFileContent(p, currentColorForClojure));
                 ImageCache.set(absoluteImagePath, injected);
                 return injected;
-            } catch (error) {}
+            } catch (error) {
+                return Promise.reject(error);
+            }
         }
     },
 

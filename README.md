@@ -1,15 +1,5 @@
 # Image Preview - Visual Studio Code Extension
 
-> [!WARNING]
->
-> **Use [kisstkondoros/gutter-preview](https://marketplace.visualstudio.com/items?itemName=kisstkondoros.vscode-gutter-preview), not this extension**—it already includes this fork's features. This repo is for historical reference only.
-
-> [!NOTE]
->
-> 1. Forked from [kisstkondoros/gutter-preview](https://github.com/kisstkondoros/gutter-preview) v0.30.0.
-> 2. Added configurable `gutterpreview.urlDetectionPatterns` to detect image URLs without file extensions (e.g. `https://example.com/pic/640?fmt=jpeg`).
-> 3. The feature was merged upstream via PR and released in v0.31.0 (2024-05-01).
-
 Shows image preview in the gutter and on hover
 
 ## It looks like this
@@ -22,8 +12,38 @@ Shows image preview in the gutter and on hover
 
 [Direct link to Visual Studio Code Marketplace](https://marketplace.visualstudio.com/items?itemName=kisstkondoros.vscode-gutter-preview)
 
-### Change Log
+## Change Log
 
+-   0.32.3
+    -   Fix issues where images might not be displayed (contribution by @tofrankie)
+-   0.32.2
+    -   Update changelog
+    -   Support slash "/" in aliases
+-   0.32.1
+    -   Update changelog
+    -   Support protocol/scheme in aliases
+-   0.32.0
+    -   Update changelog
+    -   Support multiple source folders
+    -   Fix typo in decorator.ts
+    -   Avoid rendering performance issues with large images
+    -   Extract image data from URL encoded data URIs
+    -   Add jfif to the list of supported file formats
+    -   Add support for asciidoc's imagesdir attribute
+-   0.31.2
+    -   Update changelog
+    -   Attempt to fix server restarts
+    -   Change activation event to onStartupFinished
+    -   Defer creation of output channel
+-   0.31.1
+    -   Update changelog
+    -   Update dependencies
+    -   Migrate to tsup
+-   0.31.0
+    -   Update changelog
+    -   Add `avif` support (contribution by @rommelmamedov)
+    -   Add option to load images without extensions (contribution by @tofrankie)
+        -   See option "gutterpreview.urlDetectionPatterns" for details
 -   0.30.0
     -   Update changelog
     -   Update dependencies
@@ -240,6 +260,6 @@ Shows image preview in the gutter and on hover
 -   0.0.1
     -   Initial project setup
 
-### License
+## License
 
 Licensed under MIT

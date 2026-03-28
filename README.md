@@ -1,5 +1,10 @@
 # Image Preview - Visual Studio Code Extension
 
+> [!NOTE]
+>
+> 1. Forked from [kisstkondoros/gutter-preview](https://github.com/kisstkondoros/gutter-preview) v0.30.2.
+> 2. Fixed an issue where images like `https://img.shields.io/npm/v/@tofrankie/eslint` failed to display.
+
 Shows image preview in the gutter and on hover
 
 ## It looks like this
